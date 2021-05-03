@@ -12,7 +12,7 @@ def is_args_valid(args):
     if len(args) < 2:
         print("サブコマンドを指定してください (ex. add_recipe)", file=sys.stderr)
         return False
-    elif args[1] not in ["add_recipe", "show_recipe", "delete_recipe", "help"]:
+    elif args[1] not in ["add_recipe", "show_recipe", "delete_recipe", "set_max_stuck", "help"]:
         print("不明なサブコマンドです: {}".format(args[1]), file=sys.stderr)
         help()
         return False
@@ -21,12 +21,15 @@ def is_args_valid(args):
         help("add_recipe")
         return False
     elif args[1] == "show_recipe" and len(args) not in  [3, 4]:
-        print("show_recipe の引数の書式が不正です\nadd_recipe 見たいレシピ名 [作成個数]", file=sys.stderr)
+        print("show_recipe の引数の書式が不正です\show_recipe 見たいレシピ名 [作成個数]", file=sys.stderr)
         help("show_recipe")
         return False
     elif args[1] == "delete_recipe" and len(args) != 3:
         print("delete_recipe の引数の書式が不正です\ndelete_recipe 削除するレシピ名", file=sys.stderr)
         help("delete_recipe")
+    elif args[1] == "set_max_stuck" and len(args) != 4:
+        print("set_max_stuck の引数の書式が不正です\set_max_stuck 名前 スタックする個数", file=sys.stderr)
+        help("set_max_stuck")
     return True
 
 def is_config_exist():
@@ -123,13 +126,18 @@ def show_recipe(conn, args, prefix=""):
     if recipe_id == None:
         print("そのレシピは登録されていません", file=sys.stderr)
         exit(1)
-    materials = select(conn, "SELECT objects.id, objects.name, material_required_number FROM recipes INNER JOIN objects ON (recipes.material_id = objects.id) WHERE product_id = (%s)", (recipe_id))
-    print("{}{}: {}".format(prefix, product_name, number_of_product))
+    materials = select(conn, "SELECT objects.id, objects.name, material_required_number, objects.max_stuck FROM recipes INNER JOIN objects ON (recipes.material_id = objects.id) WHERE product_id = (%s)", (recipe_id))
+    if prefix == "":
+        print("{}{}: {}".format(prefix, product_name, number_of_product))
     prefix += "  "
     for material in materials:
-        print("{}{}: {}".format(prefix, material["name"], material["material_required_number"] * number_of_product))
+        required_number = material["material_required_number"] * number_of_product
+        print("{}{}: {}".format(prefix, material["name"], required_number), end="")
+        if material["max_stuck"] != None:
+            print(" ({} スタック、{} 行)".format(required_number / material["max_stuck"], required_number / (material["max_stuck"] * 6)), end="")
+        print()
         if select(conn, "SELECT id FROM recipes WHERE product_id = (%s)", (material["id"])) != ():
-            show_recipe(conn, (None, None, material["name"], material["material_required_number"] * number_of_product), prefix)
+            show_recipe(conn, (None, None, material["name"], required_number), prefix)
     return
 
 def delete_recipe(conn, args):
@@ -137,6 +145,17 @@ def delete_recipe(conn, args):
     product_id = select_id_from_objects(conn, product_name)
     change(conn, "DELETE FROM recipes WHERE product_id = (%s)", (product_id))
     return
+
+def set_max_stuck(conn, args):
+    obj_name = args[2]
+    try:
+        max_stuck = int(args[3])
+    except ValueError:
+        print("スタックする数には整数値を入力してください", file=sys.stderr)
+        exit(1)
+    change(conn, "UPDATE objects SET max_stuck = (%s) WHERE name = (%s)", (max_stuck, obj_name))
+    return
+
 
 def help(target=""):
     if target in ["add_recipe", ""]:
@@ -154,6 +173,11 @@ def help(target=""):
         print("@general_bot delete_recipe 削除するレシピ名")
         print("指定したレシピを削除")
         print("ex. @general_bot delete_recipe 石の天井")
+        print()
+    if target in ["set_max_stuck", ""]:
+        print("@general_bot delete_recipe 名前 スタックする個数")
+        print("対象物が 1 スタックいくつかを登録する")
+        print("ex. @general_bot set_max_stuck こんがり肉 40")
         print()
     if target in ["help", ""]:
         print("@general_bot help")
@@ -179,6 +203,8 @@ def main(args):
             show_recipe(conn, args)
         elif args[1] == "delete_recipe":
             delete_recipe(conn, args)
+        elif args[1] == "set_max_stuck":
+            set_max_stuck(conn, args)
         elif args[1] == "help":
             if len(args) < 3:
                 help()
