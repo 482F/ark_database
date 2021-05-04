@@ -118,27 +118,23 @@ def show_recipe(conn, args, prefix=""):
         except ValueError:
             print("個数には整数値を入力してください", file=sys.stderr)
             exit(1)
-    product_id = select_id_from_objects(conn, product_name)
-    if product_id == None:
+    matches = select(conn, "SELECT product_id, matched_objects.name AS product_name, objects.name as material_name, material_required_number FROM recipes RIGHT JOIN (SELECT id, name FROM objects WHERE name LIKE (%s)) AS matched_objects ON recipes.product_id = matched_objects.id LEFT JOIN objects on objects.id = recipes.material_id", (product_name.replace("*", "%").replace("?", "_")))
+    if len(matches) == 1 and matches[0]["product_id"] == None and prefix != "":
+        print("{}{}: {}".format(prefix, matches[0]["product_name"], number_of_product))
+        return
+    elif matches == () or [0 for match in matches if match["product_id"] != None] == []:
         print("そのレシピは登録されていません", file=sys.stderr)
         exit(1)
-    recipe_id = select_product_id_from_recipes(conn, product_id)
-    if recipe_id == None:
-        print("そのレシピは登録されていません", file=sys.stderr)
-        exit(1)
-    materials = select(conn, "SELECT objects.id, objects.name, material_required_number, objects.max_stuck FROM recipes INNER JOIN objects ON (recipes.material_id = objects.id) WHERE product_id = (%s)", (recipe_id))
-    if prefix == "":
-        print("{}{}: {}".format(prefix, product_name, number_of_product))
-    prefix += "  "
-    for material in materials:
-        required_number = material["material_required_number"] * number_of_product
-        print("{}{}: {}".format(prefix, material["name"], required_number), end="")
-        if material["max_stuck"] != None:
-            print(" ({} スタック、{} 行)".format(required_number / material["max_stuck"], required_number / (material["max_stuck"] * 6)), end="")
-        print()
-        if select(conn, "SELECT id FROM recipes WHERE product_id = (%s)", (material["id"])) != ():
-            show_recipe(conn, (None, None, material["name"], required_number), prefix)
-    return
+
+    matches = [match for match in matches if match["material_required_number"] != None]
+    before_product_name = ""
+    for match in matches:
+        if before_product_name != match["product_name"]:
+            if before_product_name != "":
+                print()
+            print("{}{}: {}".format(prefix, match["product_name"], number_of_product))
+        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"]), prefix + "  ")
+        before_product_name = match["product_name"]
 
 def delete_recipe(conn, args):
     product_name = args[2]
