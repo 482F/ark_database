@@ -36,9 +36,12 @@ def is_config_exist():
     return os.path.isfile(CONFIG_PATH)
 
 def create_config():
+    print("MySQL サーバのユーザ名を入力")
+    username = input("username: ")
     print("MySQL サーバのパスワードを入力")
     password = getpass.getpass("password: ")
     root = ET.Element("root")
+    ET.SubElement(root, "username").text = username
     ET.SubElement(root, "password").text = password
     tree = ET.ElementTree(root)
     tree.write(CONFIG_PATH, encoding="UTF-8")
@@ -187,7 +190,7 @@ def main(args):
         create_config()
     config_tree = ET.parse(CONFIG_PATH)
     conn = pymysql.connect(host="localhost",
-        user="root",
+        user=config_tree.getroot().find("username").text,
         password=config_tree.getroot().find("password").text,
         db="ARK",
         charset="utf8mb4",
