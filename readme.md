@@ -13,6 +13,7 @@ max_stuck INT
 CREATE TABLE recipes(
 id INT UNIQUE AUTO_INCREMENT NOT NULL PRIMARY KEY,
 product_id INT NOT NULL,
+product_number INT NOT NULL DEFAULT 1,
 material_id INT NOT NULL,
 material_required_number INT NOT NULL,
 FOREIGN KEY(product_id) REFERENCES objects(id),
