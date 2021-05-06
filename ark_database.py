@@ -123,7 +123,11 @@ def show_recipe(conn, args, prefix=""):
             exit(1)
     matches = select(conn, "SELECT product_id, matched_objects.name AS product_name, matched_objects.max_stuck, objects.name as material_name, material_required_number FROM recipes RIGHT JOIN (SELECT id, name, max_stuck FROM objects WHERE name LIKE (%s)) AS matched_objects ON recipes.product_id = matched_objects.id LEFT JOIN objects on objects.id = recipes.material_id", (product_name.replace("*", "%").replace("?", "_")))
     if len(matches) == 1 and matches[0]["product_id"] == None and prefix != "":
-        print("{}{}: {}{}".format(prefix, matches[0]["product_name"], number_of_product, "" if matches[0]["max_stuck"] == None else " (" + str(number_of_product / matches[0]["max_stuck"]) + " スタック、" + str(number_of_product / (matches[0]["max_stuck"] * 6)) + " 列)"))
+        print("{}{}: {}".format(prefix, matches[0]["product_name"], number_of_product), end = "")
+        if matches[0]["max_stuck"] != None:
+            max_stuck = matches[0]["max_stuck"]
+            print(" ({} スタック、{} 列)".format(round(number_of_product / max_stuck, 2), round(number_of_product / (max_stuck * 6), 2)), end = "")
+        print()
         return
     elif matches == () or [0 for match in matches if match["product_id"] != None] == []:
         print("そのレシピは登録されていません", file=sys.stderr)
