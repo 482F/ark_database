@@ -1,3 +1,7 @@
+#### 必要ライブラリ
+- PyMySQL
+
+
 #### データベース構造
 ```
 CREATE TABLE objects(
