@@ -12,7 +12,7 @@ def is_args_valid(args):
     if len(args) < 2:
         print("サブコマンドを指定してください (ex. add_recipe)", file=sys.stderr)
         return False
-    elif args[1] not in ["add_recipe", "show_recipe", "delete_recipe", "set_max_stuck", "help"]:
+    elif args[1] not in ["add_recipe", "show_reverse_recipe", "show_recipe", "delete_recipe", "set_max_stuck", "help"]:
         print("不明なサブコマンドです: {}".format(args[1]), file=sys.stderr)
         help()
         return False
@@ -24,6 +24,9 @@ def is_args_valid(args):
         print("show_recipe の引数の書式が不正です\show_recipe 見たいレシピ名 [作成個数]", file=sys.stderr)
         help("show_recipe")
         return False
+    elif args[1] == "show_reverse_recipe" and len(args) != 3:
+        print("show_reverse_recipe の引数の書式が不正です\nshow_reverse_recipe 逆引きする素材名", file=sys.stderr)
+        help("show_reverse_recipe")
     elif args[1] == "delete_recipe" and len(args) != 3:
         print("delete_recipe の引数の書式が不正です\ndelete_recipe 削除するレシピ名", file=sys.stderr)
         help("delete_recipe")
@@ -154,6 +157,12 @@ def show_recipe(conn, args, prefix=""):
         show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "    ")
         before_product_name = match["product_name"]
 
+def show_reverse_recipe(conn, args):
+    material_name = args[2]
+    reverse_product_names = select(conn, "SELECT objects.name FROM recipes INNER JOIN (SELECT id, name FROM objects WHERE name LIKE (%s)) AS target_material ON recipes.material_id = target_material.id INNER JOIN objects ON recipes.product_id = objects.id", (material_name))
+    for name in reverse_product_names:
+        show_recipe(conn, (None, None, name["name"]))
+    return
 def delete_recipe(conn, args):
     product_name = args[2]
     product_id = select_id_from_objects(conn, product_name)
@@ -182,6 +191,10 @@ def help(target=""):
         print("製作物を指定した個数作るのに必要な素材の数を表示")
         print("ex. @general_bot show_recipe 麻酔薬 100")
         print("ex. @general_bot show_recipe アルゲンタヴィスのサドル")
+        print()
+    if target in ["show_reverse_recipe", ""]:
+        print("@general_bot show_reverse_recipe 逆引きする素材名")
+        print("ex. @general_bot show_reverse_recipe 麻酔薬")
         print()
     if target in ["delete_recipe", ""]:
         print("@general_bot delete_recipe 削除するレシピ名")
@@ -215,6 +228,8 @@ def main(args):
             add_recipe(conn, args)
         elif args[1] == "show_recipe":
             show_recipe(conn, args)
+        elif args[1] == "show_reverse_recipe":
+            show_reverse_recipe(conn, args)
         elif args[1] == "delete_recipe":
             delete_recipe(conn, args)
         elif args[1] == "set_max_stuck":
