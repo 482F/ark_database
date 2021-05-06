@@ -151,7 +151,7 @@ def show_recipe(conn, args, prefix=""):
                 max_stuck = match["max_stuck"]
                 print(" ({} スタック、{} 列)".format(round(number_of_product / max_stuck, 2), round(number_of_product / (max_stuck * 6), 2)), end = "")
             print()
-        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "  ")
+        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "    ")
         before_product_name = match["product_name"]
 
 def delete_recipe(conn, args):
