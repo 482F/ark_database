@@ -16,8 +16,8 @@ def is_args_valid(args):
         print("不明なサブコマンドです: {}".format(args[1]), file=sys.stderr)
         help()
         return False
-    elif args[1] == "add_recipe" and (len(args) < 5 or len(args) % 2 == 0):
-        print("add_recipe の引数の書式が不正です\nadd_recipe 製作物名 素材名1 素材1の必要個数 素材名2 素材2の必要個数", file=sys.stderr)
+    elif args[1] == "add_recipe" and (len(args) < 5):
+        print("add_recipe の引数の書式が不正です\nadd_recipe 製作物名 (一回で製作される個数) 素材名1 素材1の必要個数 素材名2 素材2の必要個数", file=sys.stderr)
         help("add_recipe")
         return False
     elif args[1] == "show_recipe" and len(args) not in  [3, 4]:
@@ -81,11 +81,11 @@ def select_product_id_from_recipes(conn, product_id):
         result = result[0]["product_id"]
     return result
 
-def insert_into_recipes(conn, product_id, materials_id_dict):
-    sql = "INSERT INTO recipes (product_id, material_id, material_required_number) VALUES " + ("(%s, %s, %s), " * (len(materials_id_dict) - 1)) + "(%s, %s, %s)"
+def insert_into_recipes(conn, product_id, product_number, materials_id_dict):
+    sql = "INSERT INTO recipes (product_id, product_number, material_id, material_required_number) VALUES " + ("(%s, %s, %s, %s), " * (len(materials_id_dict) - 1)) + "(%s, %s, %s, %s)"
     args = ()
     for material_id, material_required_number in materials_id_dict.items():
-        args += (product_id, material_id, material_required_number)
+        args += (product_id, product_number, material_id, material_required_number)
     change(conn, sql, args)
     return
 
@@ -98,8 +98,15 @@ def insert_and_select_id_from_objects(conn, name):
 
 def add_recipe(conn, args):
     product_name = args[2]
+    product_number = 1
+    args_index = 3
     try:
-        materials_name_dict = dict(zip(args[3::2], [int(k) for k in args[4::2]]))
+        product_number = int(args[3])
+        args_index = 4
+    except ValueError:
+        pass
+    try:
+        materials_name_dict = dict(zip(args[args_index::2], [int(k) for k in args[args_index+1::2]]))
     except ValueError:
         print("個数には整数値を入力してください", file=sys.stderr)
         exit(1)
@@ -108,7 +115,7 @@ def add_recipe(conn, args):
         print("そのレシピは既に登録されています\n変更する場合は削除してください", file=sys.stderr)
         exit(1)
     materials_id_dict = {insert_and_select_id_from_objects(conn, material_name): material_required_number for material_name, material_required_number in materials_name_dict.items()}
-    insert_into_recipes(conn, product_id, materials_id_dict)
+    insert_into_recipes(conn, product_id, product_number, materials_id_dict)
     return
 
 def show_recipe(conn, args, prefix=""):
@@ -121,7 +128,7 @@ def show_recipe(conn, args, prefix=""):
         except ValueError:
             print("個数には整数値を入力してください", file=sys.stderr)
             exit(1)
-    matches = select(conn, "SELECT product_id, matched_objects.name AS product_name, matched_objects.max_stuck, objects.name as material_name, material_required_number FROM recipes RIGHT JOIN (SELECT id, name, max_stuck FROM objects WHERE name LIKE (%s)) AS matched_objects ON recipes.product_id = matched_objects.id LEFT JOIN objects on objects.id = recipes.material_id", (product_name.replace("*", "%").replace("?", "_")))
+    matches = select(conn, "SELECT product_id, matched_objects.name AS product_name, product_number, matched_objects.max_stuck, objects.name as material_name, material_required_number FROM recipes RIGHT JOIN (SELECT id, name, max_stuck FROM objects WHERE name LIKE (%s)) AS matched_objects ON recipes.product_id = matched_objects.id LEFT JOIN objects on objects.id = recipes.material_id", (product_name.replace("*", "%").replace("?", "_")))
     if len(matches) == 1 and matches[0]["product_id"] == None and prefix != "":
         print("{}{}: {}".format(prefix, matches[0]["product_name"], number_of_product), end = "")
         if matches[0]["max_stuck"] != None:
@@ -144,7 +151,7 @@ def show_recipe(conn, args, prefix=""):
                 max_stuck = match["max_stuck"]
                 print(" ({} スタック、{} 列)".format(round(number_of_product / max_stuck, 2), round(number_of_product / (max_stuck * 6), 2)), end = "")
             print()
-        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"]), prefix + "  ")
+        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "  ")
         before_product_name = match["product_name"]
 
 def delete_recipe(conn, args):
