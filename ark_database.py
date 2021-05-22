@@ -122,6 +122,9 @@ def add_recipe(conn, args):
     return
 
 def show_recipe(conn, args, prefix=""):
+    if prefix == "    " * 10:
+        print("TOO DEEP!!")
+        return
     product_name = args[2]
     if len(args) < 4:
         number_of_product = 1
