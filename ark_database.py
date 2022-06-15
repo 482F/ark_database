@@ -137,14 +137,17 @@ def show_recipe(conn, args, prefix=""):
     matches = select(conn, "SELECT product_id, matched_objects.name AS product_name, product_number, matched_objects.max_stuck, objects.name as material_name, material_required_number FROM recipes RIGHT JOIN (SELECT id, name, max_stuck FROM objects WHERE name LIKE (%s)) AS matched_objects ON recipes.product_id = matched_objects.id LEFT JOIN objects on objects.id = recipes.material_id", (product_name.replace("*", "%").replace("?", "_")))
     if len(matches) == 1 and matches[0]["product_id"] == None and prefix != "":
         print("{}{}: {}".format(prefix, matches[0]["product_name"], number_of_product), end = "")
+        max_stuck = None
         if matches[0]["max_stuck"] != None:
             max_stuck = matches[0]["max_stuck"]
             print(" ({} スタック、{} 列)".format(round(number_of_product / max_stuck, 2), round(number_of_product / (max_stuck * 6), 2)), end = "")
         print()
-        return
+        return {matches[0]["product_name"]: (number_of_product, max_stuck)}
     elif matches == () or [0 for match in matches if match["product_id"] != None] == []:
         print("そのレシピは登録されていません", file=sys.stderr)
         exit(1)
+
+    material_dict = {}
 
     matches = [match for match in matches if match["material_required_number"] != None]
     before_product_name = ""
@@ -157,8 +160,21 @@ def show_recipe(conn, args, prefix=""):
                 max_stuck = match["max_stuck"]
                 print(" ({} スタック、{} 列)".format(round(number_of_product / max_stuck, 2), round(number_of_product / (max_stuck * 6), 2)), end = "")
             print()
-        show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "    ")
+        returned_dict = show_recipe(conn, (None, None, match["material_name"], number_of_product * match["material_required_number"] / match["product_number"]), prefix + "    ")
+
+        for returned_key in returned_dict:
+            material_dict[returned_key] = (material_dict.get(returned_key, (0,))[0] + returned_dict[returned_key][0], returned_dict[returned_key][1])
+
         before_product_name = match["product_name"]
+    if prefix == "":
+        print("\n必要最小素材")
+        for key in material_dict:
+            material = material_dict[key]
+            print("{}: {}".format(key, material[0]), end="")
+            if material[1] != None:
+                print(" ({} スタック、{} 列)".format(round(material[0] / material[1], 2), round(material[0] / (material[1] * 6), 2)), end = "")
+            print()
+    return material_dict
 
 def show_reverse_recipe(conn, args):
     material_name = args[2]
